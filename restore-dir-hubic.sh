@@ -1,11 +1,13 @@
 #!/bin/bash
 
+#TODO no diff mode
+
 echo `date +%Y%m%d\ %H:%M:%S` : Begining of script
 
 passphrase=$1
 backupdir=$2
 foldername=$3
-hubicpy=../hubic.py
+hubicpy=/home/pierre/developments/hubic-wrapper-to-swift/hubic.py
 sha1sumFile="${backupdir}/.bkp_sha1sum.lst"
 
 #TODO tests of $2 local folder and $3 distant folder existance
@@ -23,7 +25,7 @@ declare -A FILES
 # Column 1 and 2 are date and hour, we do not need it
 column=0
 # For all files in the designated distant folder
-for line in `~/hubic/hubic.py --swift -- list default -p sync_backups/${foldername}/ -l`;
+for line in `${hubicpy} --swift -- list default -p sync_backup/${foldername}/ -l`;
 do
 	if [ ${column} -eq 0 ]
 	then
@@ -32,7 +34,6 @@ do
 	then
 		filename=${line}
 		# Get the file name without the date, to be the index of the array
-		echo filename : ${filename}
 		filenamewodate=${filename::-27}
 		# The date, to compare with another instance of the file
 		date_tmp=${filename: -26}
@@ -48,14 +49,14 @@ do
 			if [ ${date//_} -gt ${prev_date//_} ]
 			then
 				# The current file is more recent, we keep it
-				echo This file has a newer version existing and will not be downloaded : ${filenamewodate}_${prev_date}.tar.gz.gpg
+				echo `date +%Y%m%d\ %H:%M:%S` : This file has a newer version existing and will not be downloaded : ${filenamewodate}_${prev_date}.tar.gz.gpg
 				FILES[${filenamewodate}]=${date}_${size_remote}
 			else
-				echo This file has a newer version existing and will not be downloaded : ${filename}
+				echo `date +%Y%m%d\ %H:%M:%S` : This file has a newer version existing and will not be downloaded : ${filename}
 			fi
 		else
 			# NO other file in the array, we keep it
-			#echo File ${filenamewodate} added to the list
+			echo `date +%Y%m%d\ %H:%M:%S` : File ${filenamewodate} added to the list
 			FILES[${filenamewodate}]=${date}_${size_remote}
 		fi
 	fi
@@ -95,7 +96,7 @@ do
 	echo `date +%Y%m%d\ %H:%M:%S` : The file will be downloaded   : ${gpg_file_path}
 		
 	# Download the file
-	~/hubic/hubic.py --swift -- download default ${gpg_file_path}
+	${hubicpy} --swift -- download default ${gpg_file_path}
 	
 	# Size of the downloaded file, for comparison
 	actualsize=$(du -b "${gpg_file_path}" | cut -f 1)
@@ -117,11 +118,12 @@ do
 	echo `date +%Y%m%d\ %H:%M:%S` : The file will be decrypted    : ${gpg_file_path}
 		
 	# Decryption of the file
-	gpg --passphrase ${passphrase} $gpg_file_path
+	# Quiet mode. TODO: detect errors and make verbose mode for gpg and tar
+	gpg --quiet --passphrase ${passphrase} $gpg_file_path
 	echo `date +%Y%m%d\ %H:%M:%S` : The file will be decompressed : ${gpg_file_path::-4}
 		
 	# Decompression of the file
-	tar -xzvf --no-overwrite-dir ${gpg_file_path::-4}
+	tar -xzf ${gpg_file_path::-4}
 
 	# Deletion of the file
 	rm -f ${gpg_file_path::-4} 
