@@ -1,6 +1,7 @@
 #!/bin/bash
 
 #TODO no diff mode
+#TODO lazy mode : check only the folders where there is files newer than the last execution 
 
 passphrase=${1}
 backupdir=${2%/}
@@ -42,9 +43,7 @@ ls "${backupdir}" | while read line; do
   echo `date +%Y%m%d\ %H:%M:%S` : Compression will begin : ${filename}
   # Compression and encryption of the file/folder
   # TODO /home/pierre/hubic/tmp/ => ${4}/${backupdir}/ and delete/create it at the begining and the end of the script
-  # -C / - "${backupdir#/}/${line}"
   tar -P -C / -czf - "${backupdir#/}/${line}" | gpg --cipher-algo AES256 --compress-algo none --batch --yes --passphrase ${passphrase} -c -o "/home/pierre/hubic/tmp/${filename}_${namehash}.tar.gz.gpg"
-  echo `date +%Y%m%d\ %H:%M:%S` : Upload will begin      : ${filename}
 
   #Calculate the size of swift segment to optimize the number of segment (empirical, around 100. 1000 is the maximum allowed)
   #TODO parameterize this
@@ -55,9 +54,13 @@ ls "${backupdir}" | while read line; do
     segmentSize=60000000
   elif [ ${actualsize} -le 20000000 ]; then
     segmentSize=120000000
-  else
+  elif [ ${actualsize} -le 40000000 ]; then
     segmentSize=240000000
+  else
+    segmentSize=480000000
   fi
+
+  echo `date +%Y%m%d\ %H:%M:%S` : Upload will begin. Size = ${actualsize}, segment size = ${segmentSize} : ${filename}
 
   #Upload of the encrypted file
   $hubicpy --swift -- upload --use-slo --segment-size ${segmentSize} --object-threads 40 --segment-threads 20 --object-name "${dest_path}" default /home/pierre/hubic/tmp/${filename}_${namehash}.tar.gz.gpg
